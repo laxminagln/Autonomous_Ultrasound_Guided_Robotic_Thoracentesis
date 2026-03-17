@@ -7,4 +7,5 @@
 # new environment variables
 
 # modified environment variables
-export PWD='/home/laxmi/catkin_ws/build'
+export PWD='/home/laxmi/GitHub/MSc-Dissertation/catkin_ws/build'
+export ROS_PACKAGE_PATH='/home/laxmi/catkin_ws/src:/home/laxmi/GitHub/MSc-Dissertation/catkin_ws/src:/home/laxmi/catkin_ws/src:/home/laxmi/franka_ws/src/franka_ros/franka_description:/home/laxmi/franka_ws/src/franka_ros/franka_gripper:/home/laxmi/franka_ws/src/franka_ros/franka_msgs:/home/laxmi/franka_ws/src/franka_ros/franka_hw:/home/laxmi/franka_ws/src/franka_ros/franka_control:/home/laxmi/franka_ws/src/franka_ros/franka_example_controllers:/home/laxmi/franka_ws/src/franka_ros/franka_ros:/home/laxmi/franka_ws/src/franka_ros/franka_visualization:/home/laxmi/franka_ws/src/panda_moveit_config:/opt/ros/noetic/share'
