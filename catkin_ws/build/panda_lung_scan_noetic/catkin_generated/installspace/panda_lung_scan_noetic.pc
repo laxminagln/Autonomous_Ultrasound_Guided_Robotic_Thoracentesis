@@ -1,0 +1,8 @@
+prefix=/home/laxmi/catkin_ws/install
+
+Name: panda_lung_scan_noetic
+Description: Description of panda_lung_scan_noetic
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

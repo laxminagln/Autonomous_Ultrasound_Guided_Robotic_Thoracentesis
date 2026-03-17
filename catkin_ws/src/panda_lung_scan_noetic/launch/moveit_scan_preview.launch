@@ -1,0 +1,16 @@
+<launch>
+  <arg name="load_gripper" default="false"/>
+
+  <rosparam command="load" file="$(find panda_lung_scan_noetic)/config/lung_scan.yaml"/>
+
+  <include file="$(find panda_moveit_config)/launch/demo.launch">
+    <arg name="load_gripper" value="$(arg load_gripper)"/>
+  </include>
+
+  <node pkg="panda_lung_scan_noetic"
+        type="scan_moveit_real"
+        name="scan_moveit_real"
+        output="screen">
+    <rosparam command="load" file="$(find panda_lung_scan_noetic)/config/lung_scan.yaml"/>
+  </node>
+</launch>
