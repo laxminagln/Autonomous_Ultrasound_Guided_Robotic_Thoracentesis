@@ -1,2 +1,2 @@
 - setup-file:
-    local-name: /home/laxmi/GitHub/MSc-Dissertation/catkin_ws/install/setup.sh
+    local-name: /home/laxmi/catkin_ws/install/setup.sh
