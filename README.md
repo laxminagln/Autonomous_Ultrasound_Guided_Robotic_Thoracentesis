@@ -98,158 +98,76 @@ That is exactly the behavior wanted.
 For the real robot, the correct architecture is:
 
 1. MoveIt
-
 Use MoveIt only to:
-
 move to a safe pre-scan pose
-
 optionally move to the first scan start pose
 
 2. Cartesian impedance controller
-
 Use the Franka Cartesian impedance controller to track:
-
+```
 pd(t)=[xd(t),yd(t),zd(t)]
-p
-d
-	​
-
-(t)=[x
-d
-	​
-
-(t),y
-d
-	​
-
-(t),z
-d
-	​
-
-(t)]
+```
 
 where:
-
 x_d(t) is the current pass center or lateral transition
-
 y_d(t) moves slowly along the 14 cm line
-
 z_d(t) follows the curve
 
 3. Fixed orientation
-
 Keep the ultrasound probe orientation fixed initially.
 
-That is the most realistic first implementation for 2-day style integration.
 
-Continuous slow motion law
-
+### Continuous slow motion law
 For each pass, let scan speed be slow and constant.
-
-A good first real value is:
-
-0.003 m/s
-
-That is 3 mm/s.
+A good first real value is: 0.003 m/s. That is 3 mm/s.
 
 With 14 cm length, one pass takes about:
-
+```
 0.14/0.003≈46.7 s
-0.14/0.003≈46.7 s
+```
 
 So 4 passes will take a bit over 3 minutes including small connectors. That is slow, controlled, and very suitable for ultrasound.
+If that is too slow for development, start with: 0.005 m/s and reduce later.
 
-If that is too slow for development, start with:
 
-0.005 m/s
-
-and reduce later.
-
-The exact reference path
-
+### The exact reference path
 Define:
-
 y_min = -0.07
-
 y_max = 0.07
 
 lateral centers:
 [-0.045, -0.015, 0.015, 0.045]
 
 Then for pass i:
-
+```
 xd=xi
-x
-d
-	​
-
-=x
-i
-	​
-
 zd=zcenter−4.1667 xi2+zcontact
-z
-d
-	​
-
-=z
-center
-	​
-
-−4.1667x
-i
-2
-	​
-
-+z
-contact
-	​
-
+```​
 
 and y_d moves linearly between y_min and y_max, alternating direction each pass.
 
 That gives 4 full scans over the area.
 
-Connector motion between passes
 
+### Connector motion between passes
 To keep motion continuous, do not jump.
-
 At the end of a pass:
-
 keep y at the current end
-
 move x slowly to the next lateral line
-
 update z = z(x) continuously during that transition
-
 So the connector also follows the curved surface.
-
 That gives a truly continuous scan.
 
-About the heights you gave
-
-You said:
-
 optical table height ≈ 5 cm
-
 phantom height ≈ 4.5 to 6 cm
-
 tool/end-effector height including scanner ≈ 22 cm
 
 So the phantom top surface is roughly:
-
 9.5 cm to 11 cm above the shared lab table
-
 That is useful as a sanity check.
 
 But for the robot controller, the important quantity is surface height in robot coordinates, not table coordinates.
-
 So the right workflow is:
-
 manually teach or estimate the center contact pose
-
 use that as z_center
-
 derive the other 3 pass heights from the parabola
-
-That is much better than trying to compute absolute scan Z from furniture height alone.
