@@ -1,10 +1,7 @@
 <launch>
-  <arg name="load_gripper" default="false"/>
-
-  <rosparam command="load" file="$(find panda_lung_scan_noetic)/config/lung_scan.yaml"/>
-
+  <!-- RViz / fake controller preview only -->
   <include file="$(find panda_moveit_config)/launch/demo.launch">
-    <arg name="load_gripper" value="$(arg load_gripper)"/>
+    <arg name="load_gripper" value="false"/>
   </include>
 
   <node pkg="panda_lung_scan_noetic"
@@ -12,5 +9,6 @@
         name="scan_moveit_real"
         output="screen">
     <rosparam command="load" file="$(find panda_lung_scan_noetic)/config/lung_scan.yaml"/>
+    <param name="contact_offset" value="0.0"/>
   </node>
 </launch>

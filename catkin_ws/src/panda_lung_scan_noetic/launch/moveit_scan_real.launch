@@ -1,29 +1,24 @@
 <launch>
-
-  <!-- Load scan parameters -->
-  <rosparam command="load" file="$(find panda_lung_scan_noetic)/config/lung_scan.yaml"/>
-
-  <!-- Connect to real Panda -->
+  <!-- Real robot + RViz -->
   <include file="$(find franka_control)/launch/franka_control.launch">
     <arg name="robot_ip" value="172.16.0.2"/>
     <arg name="load_gripper" value="false"/>
   </include>
 
-  <!-- MoveIt -->
   <include file="$(find panda_moveit_config)/launch/move_group.launch">
     <arg name="allow_trajectory_execution" value="true"/>
   </include>
 
-  <!-- RViz -->
-  <node pkg="rviz" type="rviz" name="rviz"
+  <node pkg="rviz"
+        type="rviz"
+        name="rviz"
         args="-d $(find panda_moveit_config)/launch/moveit.rviz"/>
 
-  <!-- Scan node -->
   <node pkg="panda_lung_scan_noetic"
-        type="scan_moveit_preview"
+        type="scan_moveit_real"
         name="scan_moveit_real"
         output="screen">
     <rosparam command="load" file="$(find panda_lung_scan_noetic)/config/lung_scan.yaml"/>
+    <param name="contact_offset" value="-0.001"/>
   </node>
-
 </launch>

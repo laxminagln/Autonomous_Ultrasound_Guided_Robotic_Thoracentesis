@@ -2,19 +2,37 @@ scan_axis: 1
 lateral_axis: 0
 contact_axis: 2
 
-settle_time: 4.0
-scan_length: 0.04
-scan_speed: 0.0005   # not critical anymore
+# Timing / motion
+settle_time: 2.0
+scan_length: 0.14
+scan_width: 0.12
+num_passes: 4
 scan_cycles: 1.0
+scan_speed: 0.003   # informational only in this MoveIt setup
 
-contact_offset: -0.002
+# Curved surface model
+curve_half_width: 0.06
+curve_drop: 0.015
+pass_coverage_ratio: 0.75
+
+# Path generation / smoothing
+connector_points: 12
+eef_step: 0.003
+
+# Contact settings
+# Keep 0.0 for RViz preview.
+# For real robot, override in launch to a small negative value like -0.001.
+contact_offset: 0.0
 lateral_offset: 0.0
 
-cartesian_velocity_scaling: 0.02
-cartesian_acceleration_scaling: 0.02
+# Trajectory timing (these control visible speed)
+cartesian_velocity_scaling: 0.01
+cartesian_acceleration_scaling: 0.01
 
-cartesian_stiffness: [250.0, 250.0, 80.0, 20.0, 20.0, 20.0]
-cartesian_damping:   [31.6, 31.6, 17.9, 8.9, 8.9, 8.9]
+# Kept here for later real impedance controller stage
+cartesian_stiffness: [120.0, 250.0, 50.0, 20.0, 20.0, 20.0]
+cartesian_damping:   [21.9, 31.6, 14.1, 8.9, 8.9, 8.9]
 
 # x y z qx qy qz qw
+# This should be a calibrated center-above-phantom pose.
 start_pose: [0.45, 0.00, 0.30, 1.0, 0.0, 0.0, 0.0]
