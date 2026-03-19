@@ -24,9 +24,9 @@ Since the curved width is 12 cm, half-width is: 0.06 m
 Since max height is 6 cm and min height is 4.5 cm, the height difference is: 0.015 m
 
 A simple parabola is a very good first model:
-'''
+```
 z(x)=z_center−4.1667x^2
-'''
+```
 where:
     - x is lateral position in meters
     - z_center is the calibrated center contact height
@@ -42,18 +42,18 @@ This matches our dimensions:
 
 Use 4 longitudinal passes across the width.
 A good set of lateral line centers is:
-'''
+```
 x1 = -0.045 m
 x2 = -0.015 m
 x3 =  0.015 m
 x4 =  0.045 m
-'''
+```
 These are good because they cover the 12 cm width without forcing the probe exactly onto the extreme edges.
 
 For each pass, scan along:
-'''
+```
 y from -0.07 m to +0.07 m
-'''
+```
 because the total length is 14 cm.
 
 Use a continuous serpentine pattern:
@@ -72,24 +72,24 @@ Because the curvature is across width, each longitudinal scan line has a differe
 Using the parabola:
 
 - at x = ±0.045,
-'''
+```
 Δz=−4.1667⋅(0.045)^2≈−0.0084 m
-'''
+```
 so about 8.4 mm lower than center
 
 - at x = ±0.015,
-'''
+```
 Δz=−4.1667⋅(0.015)2≈−0.00094 m
-'''
+```
 so about 0.94 mm lower than center
 
 So our 4 scan heights relative to the center are approximately:
-'''
+```
 x = -0.045  → z = z_center - 8.4 mm
 x = -0.015  → z = z_center - 0.9 mm
 x =  0.015  → z = z_center - 0.9 mm
 x =  0.045  → z = z_center - 8.4 mm
-'''
+```
 That is exactly the behavior wanted.
 
 
