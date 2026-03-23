@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="load_gripper" default="true" />
+  <!-- <arg name="pipeline" value="pilz_industrial_motion_planner" /> -->
+
+  <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen" args="position_joint_trajectory_controller"/>
+  <!-- <rosparam command="load" file="$(find franka_example_controllers)/config/franka_example_controllers.yaml" /> -->
+  <!-- <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen" args="joint_impedance_example_controller"/> -->
+  
+  
+  <include file="$(find panda_moveit_config)/launch/move_group.launch">
+    <arg name="load_gripper" value="$(arg load_gripper)" />
+    <!-- <arg name="pipeline" value="$(arg pipeline)" /> -->
+  </include>
+</launch>
