@@ -1,0 +1,30 @@
+<launch>
+  <arg name="robot_ip" default="172.16.0.2"/>
+  <arg name="load_gripper" default="false"/>
+
+  <!-- This already starts:
+       - franka_control
+       - state_controller_spawner
+       - robot_state_publisher
+       - joint_state_publisher
+       - joint_state_desired_publisher
+  -->
+  <include file="$(find franka_control)/launch/franka_control.launch">
+    <arg name="robot_ip" value="$(arg robot_ip)"/>
+    <arg name="load_gripper" value="$(arg load_gripper)"/>
+  </include>
+
+  <!-- Only spawn the arm trajectory controller here -->
+  <node name="arm_controller_spawner"
+        pkg="controller_manager"
+        type="spawner"
+        respawn="false"
+        output="screen"
+        args="position_joint_trajectory_controller" />
+
+  <!-- Static TF -->
+  <node pkg="tf2_ros"
+        type="static_transform_publisher"
+        name="world_to_panda_link0"
+        args="0 0 0 0 0 0 world panda_link0" />
+</launch>

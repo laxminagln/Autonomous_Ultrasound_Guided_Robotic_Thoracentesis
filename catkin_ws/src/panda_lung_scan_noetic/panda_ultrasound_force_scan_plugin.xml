@@ -1,0 +1,10 @@
+<library path="lib/libpanda_ultrasound_force_scan_controller">
+  <class
+      name="panda_lung_scan_noetic/PandaUltrasoundForceScanController"
+      type="panda_lung_scan_noetic::PandaUltrasoundForceScanController"
+      base_class_type="controller_interface::ControllerBase">
+    <description>
+      Cartesian impedance ultrasound scan controller with force-controlled contact.
+    </description>
+  </class>
+</library>

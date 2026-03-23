@@ -1,7 +1,7 @@
 <launch>
   <!-- RViz / fake controller preview only -->
   <include file="$(find panda_moveit_config)/launch/demo.launch">
-    <arg name="load_gripper" value="false"/>
+    <!--<arg name="load_gripper" value="false"/>-->
   </include>
 
   <node pkg="panda_lung_scan_noetic"

@@ -124,14 +124,20 @@ int main(int argc, char** argv) {
 
   // ---------------- MoveIt Setup ----------------
   moveit::planning_interface::MoveGroupInterface move_group("panda_arm");
+
   move_group.setPoseReferenceFrame("panda_link0");
   move_group.setEndEffectorLink("panda_link8");
+
+  move_group.setPlannerId("PTP");
+  move_group.setStartStateToCurrentState();
+
+  // Keep the execution robustness fixes
+  move_group.setGoalJointTolerance(0.05);
+  move_group.setGoalPositionTolerance(0.01);
+  move_group.setGoalOrientationTolerance(0.05);
+
   move_group.setPlanningTime(10.0);
   move_group.setNumPlanningAttempts(10);
-
-  // Affects move-to-start motion
-  move_group.setMaxVelocityScalingFactor(0.01);
-  move_group.setMaxAccelerationScalingFactor(0.01);
 
   ROS_INFO("Planning frame: %s", move_group.getPlanningFrame().c_str());
   ROS_INFO("End effector: %s", move_group.getEndEffectorLink().c_str());
@@ -142,24 +148,33 @@ int main(int argc, char** argv) {
   int contact_axis = 2;
 
   double settle_time = 2.0;
-  double scan_length = 0.14;      // 14 cm straight direction
-  double scan_width = 0.12;       // 12 cm curved direction
+
+  // Updated measurements
+  double scan_length = 0.145;      // 14.5 cm straight direction
+  double scan_width = 0.105;       // 10.5 cm curved direction
   int num_passes = 4;
   double scan_cycles = 1.0;
 
-  double curve_half_width = 0.06; // half of 12 cm
-  double curve_drop = 0.015;      // 6.0 cm center vs 4.5 cm edges
+  double curve_half_width = 0.0525; // half of 10.5 cm
+  double curve_drop = 0.010;        // 7.5 cm center vs 6.5 cm edges
   double pass_coverage_ratio = 0.75;
 
   double scan_speed = 0.003;      // informational / compatibility only
-  double contact_offset = 0.0;    // default safe for RViz
+  double contact_offset = 0.0;    // safe default for RViz
   double lateral_offset = 0.0;
 
   int connector_points = 12;
   double eef_step = 0.003;
 
+  // Scan timing (kept as before)
   double cartesian_velocity_scaling = 0.01;
   double cartesian_acceleration_scaling = 0.01;
+
+  // Faster motion for approach and return
+  double approach_velocity_scaling = 0.05;
+  double approach_acceleration_scaling = 0.05;
+  double return_velocity_scaling = 0.05;
+  double return_acceleration_scaling = 0.05;
 
   nh.param("scan_axis", scan_axis, scan_axis);
   nh.param("lateral_axis", lateral_axis, lateral_axis);
@@ -185,8 +200,18 @@ int main(int argc, char** argv) {
   nh.param("cartesian_velocity_scaling", cartesian_velocity_scaling, cartesian_velocity_scaling);
   nh.param("cartesian_acceleration_scaling", cartesian_acceleration_scaling, cartesian_acceleration_scaling);
 
+  nh.param("approach_velocity_scaling", approach_velocity_scaling, approach_velocity_scaling);
+  nh.param("approach_acceleration_scaling", approach_acceleration_scaling, approach_acceleration_scaling);
+  nh.param("return_velocity_scaling", return_velocity_scaling, return_velocity_scaling);
+  nh.param("return_acceleration_scaling", return_acceleration_scaling, return_acceleration_scaling);
+
   cartesian_velocity_scaling = clampDouble(cartesian_velocity_scaling, 0.001, 1.0);
   cartesian_acceleration_scaling = clampDouble(cartesian_acceleration_scaling, 0.001, 1.0);
+  approach_velocity_scaling = clampDouble(approach_velocity_scaling, 0.001, 1.0);
+  approach_acceleration_scaling = clampDouble(approach_acceleration_scaling, 0.001, 1.0);
+  return_velocity_scaling = clampDouble(return_velocity_scaling, 0.001, 1.0);
+  return_acceleration_scaling = clampDouble(return_acceleration_scaling, 0.001, 1.0);
+
   pass_coverage_ratio = clampDouble(pass_coverage_ratio, 0.0, 1.0);
   num_passes = std::max(1, num_passes);
   connector_points = std::max(2, connector_points);
@@ -201,6 +226,16 @@ int main(int argc, char** argv) {
            contact_offset, lateral_offset);
   ROS_INFO("cartesian_velocity_scaling=%.4f cartesian_acceleration_scaling=%.4f",
            cartesian_velocity_scaling, cartesian_acceleration_scaling);
+  ROS_INFO("approach_velocity_scaling=%.4f approach_acceleration_scaling=%.4f",
+           approach_velocity_scaling, approach_acceleration_scaling);
+  ROS_INFO("return_velocity_scaling=%.4f return_acceleration_scaling=%.4f",
+           return_velocity_scaling, return_acceleration_scaling);
+
+  // Debug: print current joint values
+  std::vector<double> joints = move_group.getCurrentJointValues();
+  for (size_t i = 0; i < joints.size(); ++i) {
+    ROS_INFO("Current joint %zu: %f", i + 1, joints[i]);
+  }
 
   // ---------------- Start Pose ----------------
   std::vector<double> start_pose_vec = getVectorParam(nh, "start_pose");
@@ -220,7 +255,13 @@ int main(int argc, char** argv) {
 
   // ---------------- Move to Start ----------------
   ROS_INFO("Planning move to scan start pose...");
+  move_group.clearPoseTargets();
+  move_group.setStartStateToCurrentState();
   move_group.setPoseTarget(start_pose);
+
+  // Faster approach move
+  move_group.setMaxVelocityScalingFactor(approach_velocity_scaling);
+  move_group.setMaxAccelerationScalingFactor(approach_acceleration_scaling);
 
   moveit::planning_interface::MoveGroupInterface::Plan start_plan;
   if (move_group.plan(start_plan) != moveit::planning_interface::MoveItErrorCode::SUCCESS) {
@@ -230,6 +271,8 @@ int main(int argc, char** argv) {
 
   ROS_INFO("Press ENTER to move to start pose...");
   std::cin.get();
+
+  ros::Duration(1.0).sleep();
 
   if (move_group.execute(start_plan) != moveit::planning_interface::MoveItErrorCode::SUCCESS) {
     ROS_ERROR("Failed to execute start pose motion.");
@@ -329,6 +372,19 @@ int main(int argc, char** argv) {
     ROS_INFO("Cartesian trajectory retimed successfully.");
   }
 
+  // ---------------- Ensure strictly increasing timestamps ----------------
+  double last_time = 0.0;
+  for (size_t i = 0; i < trajectory.joint_trajectory.points.size(); ++i) {
+    double t = trajectory.joint_trajectory.points[i].time_from_start.toSec();
+
+    if (t <= last_time) {
+      t = last_time + 1e-4;  // enforce strictly increasing times
+      trajectory.joint_trajectory.points[i].time_from_start = ros::Duration(t);
+    }
+
+    last_time = t;
+  }
+
   moveit::planning_interface::MoveGroupInterface::Plan cart_plan;
   cart_plan.trajectory_ = trajectory;
 
@@ -342,7 +398,30 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  ROS_INFO("Curved scan complete.");
+  ROS_INFO("Curved scan complete. Returning to start pose...");
+
+  // ---------------- Return to Start Pose ----------------
+  move_group.clearPoseTargets();
+  move_group.setStartStateToCurrentState();
+  move_group.setPoseTarget(start_pose);
+
+  move_group.setMaxVelocityScalingFactor(return_velocity_scaling);
+  move_group.setMaxAccelerationScalingFactor(return_acceleration_scaling);
+
+  moveit::planning_interface::MoveGroupInterface::Plan return_plan;
+  if (move_group.plan(return_plan) != moveit::planning_interface::MoveItErrorCode::SUCCESS) {
+    ROS_ERROR("Failed to plan return-to-start motion.");
+    return 1;
+  }
+
+  ros::Duration(0.5).sleep();
+
+  if (move_group.execute(return_plan) != moveit::planning_interface::MoveItErrorCode::SUCCESS) {
+    ROS_ERROR("Failed to execute return-to-start motion.");
+    return 1;
+  }
+
+  ROS_INFO("Returned to start pose successfully.");
   ros::waitForShutdown();
   return 0;
 }
