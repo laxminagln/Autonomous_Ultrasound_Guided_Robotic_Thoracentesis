@@ -173,3 +173,36 @@ So the right workflow is:
 manually teach or estimate the center contact pose
 use that as z_center
 derive the other 3 pass heights from the parabola
+
+#### Terminal 1
+```
+cd ~/catkin_ws
+source devel/setup.bash
+roslaunch panda_lung_scan_noetic force_scan_hardware.launch
+```
+
+#### Terminal 2
+```
+cd ~/catkin_ws
+source devel/setup.bash
+roslaunch panda_lung_scan_noetic moveit_to_start.launch
+```
+
+#### Terminal 3
+```
+rosservice call /controller_manager/switch_controller "{
+  start_controllers: ['panda_ultrasound_force_scan_controller'],
+  stop_controllers: ['position_joint_trajectory_controller'],
+  strictness: 2,
+  start_asap: false,
+  timeout: 0.0
+}"
+
+rosservice call /controller_manager/switch_controller "{
+  start_controllers: ['position_joint_trajectory_controller'],
+  stop_controllers: ['panda_ultrasound_force_scan_controller'],
+  strictness: 2,
+  start_asap: false,
+  timeout: 0.0
+}"
+```
