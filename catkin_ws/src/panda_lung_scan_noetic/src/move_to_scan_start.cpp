@@ -21,6 +21,51 @@ static std::vector<double> getVectorParam(ros::NodeHandle& nh, const std::string
   return out;
 }
 
+static geometry_msgs::Pose vectorToPose(const std::vector<double>& pose_vec) {
+  geometry_msgs::Pose pose;
+  pose.position.x = pose_vec[0];
+  pose.position.y = pose_vec[1];
+  pose.position.z = pose_vec[2];
+  pose.orientation.x = pose_vec[3];
+  pose.orientation.y = pose_vec[4];
+  pose.orientation.z = pose_vec[5];
+  pose.orientation.w = pose_vec[6];
+  return pose;
+}
+
+static bool planAndExecutePose(moveit::planning_interface::MoveGroupInterface& move_group,
+                               const geometry_msgs::Pose& target_pose,
+                               const std::string& label) {
+  ROS_INFO_STREAM("Planning move to " << label << "...");
+
+  move_group.clearPoseTargets();
+  move_group.setStartStateToCurrentState();
+  move_group.setPoseTarget(target_pose);
+
+  moveit::planning_interface::MoveGroupInterface::Plan plan;
+  moveit::planning_interface::MoveItErrorCode rc = move_group.plan(plan);
+
+  if (rc != moveit::planning_interface::MoveItErrorCode::SUCCESS) {
+    ROS_ERROR_STREAM("Failed to plan " << label << ".");
+    return false;
+  }
+
+  ROS_INFO_STREAM("Press ENTER to move to " << label << "...");
+  std::cin.get();
+
+  rc = move_group.execute(plan);
+  if (rc != moveit::planning_interface::MoveItErrorCode::SUCCESS) {
+    ROS_ERROR_STREAM("Failed to execute motion to " << label << ".");
+    return false;
+  }
+
+  move_group.stop();
+  move_group.clearPoseTargets();
+
+  ROS_INFO_STREAM("Reached " << label << " successfully.");
+  return true;
+}
+
 int main(int argc, char** argv) {
   ros::init(argc, argv, "move_to_scan_start");
   ros::NodeHandle nh("~");
@@ -29,16 +74,19 @@ int main(int argc, char** argv) {
   spinner.start();
 
   moveit::planning_interface::MoveGroupInterface move_group("panda_arm");
+
+  // panda_link0 = robot base frame
+  // panda_link8 = end-effector frame
   move_group.setPoseReferenceFrame("panda_link0");
   move_group.setEndEffectorLink("panda_link8");
-  move_group.setPlannerId("PTP");
+
+  // Match the Python logic as closely as possible
+  move_group.setPlannerId("LIN");
+  move_group.setPlanningTime(10.0);
+  move_group.setNumPlanningAttempts(10);
   move_group.setStartStateToCurrentState();
 
-  move_group.setGoalJointTolerance(0.05);
-  move_group.setGoalPositionTolerance(0.01);
-  move_group.setGoalOrientationTolerance(0.05);
-
-  double approach_velocity_scaling = 0.03;
+  double approach_velocity_scaling = 0.28;
   double approach_acceleration_scaling = 0.03;
   nh.param("approach_velocity_scaling", approach_velocity_scaling, approach_velocity_scaling);
   nh.param("approach_acceleration_scaling", approach_acceleration_scaling, approach_acceleration_scaling);
@@ -46,40 +94,37 @@ int main(int argc, char** argv) {
   move_group.setMaxVelocityScalingFactor(approach_velocity_scaling);
   move_group.setMaxAccelerationScalingFactor(approach_acceleration_scaling);
 
+  std::vector<double> home_pose_vec = getVectorParam(nh, "home_pose");
   std::vector<double> start_pose_vec = getVectorParam(nh, "start_pose");
+
+  if (home_pose_vec.size() != 7) {
+    ROS_ERROR("home_pose must contain 7 values: x y z qx qy qz qw");
+    return 1;
+  }
+
   if (start_pose_vec.size() != 7) {
     ROS_ERROR("start_pose must contain 7 values: x y z qx qy qz qw");
     return 1;
   }
 
-  geometry_msgs::Pose start_pose;
-  start_pose.position.x = start_pose_vec[0];
-  start_pose.position.y = start_pose_vec[1];
-  start_pose.position.z = start_pose_vec[2];
-  start_pose.orientation.x = start_pose_vec[3];
-  start_pose.orientation.y = start_pose_vec[4];
-  start_pose.orientation.z = start_pose_vec[5];
-  start_pose.orientation.w = start_pose_vec[6];
+  geometry_msgs::Pose home_pose = vectorToPose(home_pose_vec);
+  geometry_msgs::Pose start_pose = vectorToPose(start_pose_vec);
 
-  ROS_INFO("Planning move to scan start pose...");
-  move_group.clearPoseTargets();
-  move_group.setStartStateToCurrentState();
-  move_group.setPoseTarget(start_pose);
-
-  moveit::planning_interface::MoveGroupInterface::Plan start_plan;
-  if (move_group.plan(start_plan) != moveit::planning_interface::MoveItErrorCode::SUCCESS) {
-    ROS_ERROR("Failed to plan start pose.");
-    return 1;
-  }
-
-  ROS_INFO("Press ENTER to move to scan start pose...");
+  ROS_WARN("===== MOVE TO SCAN START SEQUENCE =====");
+  ROS_WARN("This sequence will move the robot to HOME first, then to SCAN START.");
+  ROS_WARN("Robot base frame is panda_link0. End-effector target frame is panda_link8.");
+  ROS_WARN("Press ENTER to begin home-position planning...");
   std::cin.get();
 
-  if (move_group.execute(start_plan) != moveit::planning_interface::MoveItErrorCode::SUCCESS) {
-    ROS_ERROR("Failed to execute start pose motion.");
+  if (!planAndExecutePose(move_group, home_pose, "home pose")) {
     return 1;
   }
 
-  ROS_INFO("Reached scan start pose successfully.");
+  if (!planAndExecutePose(move_group, start_pose, "scan start pose")) {
+    return 1;
+  }
+
+  ROS_INFO("Robot has reached home pose first and then scan start pose.");
+  ROS_INFO("It is now ready for the scan step.");
   return 0;
 }
