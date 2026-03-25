@@ -17,8 +17,8 @@
         args="-d $(find panda_moveit_config)/launch/moveit.rviz"/>
 
   <node pkg="panda_lung_scan_noetic"
-        type="scan_moveit_real"
-        name="scan_moveit_real"
+        type="move_to_scan_start"
+        name="move_to_scan_start"
         output="screen"
         launch-prefix="/bin/bash -lc 'sleep 15; exec &quot;$0&quot; &quot;$@&quot;'">
     <rosparam command="load" file="$(find panda_lung_scan_noetic)/config/lung_scan.yaml"/>
