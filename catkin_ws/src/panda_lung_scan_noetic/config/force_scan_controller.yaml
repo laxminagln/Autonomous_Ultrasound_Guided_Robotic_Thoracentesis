@@ -14,45 +14,44 @@ panda_ultrasound_force_scan_controller:
   lateral_axis: 0
   contact_axis: 2
 
-  # Full scan coverage
   scan_length: 0.145
   scan_width: 0.105
   num_passes: 4
-  scan_speed: 0.004
-  pass_coverage_ratio: 0.75
+  scan_speed: 0.003
+  pass_coverage_ratio: 1.0
 
-  # Latest phantom curvature
   curve_half_width: 0.0525
   curve_drop: 0.010
-
-  # Small initial push before force regulation
-  contact_offset: -0.0015
+  contact_offset: -0.0008
   lateral_offset: 0.0
 
-  # Timing
   settle_time: 2.0
-  contact_acquire_time: 1.5
+  contact_acquire_time: 3.0
 
-  # Force-controlled contact
-  desired_contact_force: 2.5
+  desired_contact_force: 2.0
   force_tolerance: 0.5
-  force_kp: 0.0008
-  force_ki: 0.0002
-  max_force_correction: 0.005
+  force_kp: 0.0004
+  force_ki: 0.00008
+  max_force_correction: 0.0025
   contact_direction_sign: -1.0
   force_filter_alpha: 0.9
 
-  # Path generation
+  contact_force_enable_ratio: 0.75
+  contact_force_trigger: 0.5
+
   connector_points: 12
   scan_resolution: 0.003
 
-  # Return motion
-  lift_off_distance: 0.008
-  return_speed: 0.03
+  lift_off_distance: 0.005
+  return_speed: 0.02
 
-  # Currently not used if tau_nullspace is zeroed in your controller
-  nullspace_stiffness: 0.0
+  nullspace_stiffness: 20.0
 
-  # Stronger XY tracking, softer Z for contact
-  cartesian_stiffness: [300.0, 450.0, 60.0, 20.0, 20.0, 20.0]
-  cartesian_damping:   [34.6, 42.4, 15.5, 8.9, 8.9, 8.9]
+  rocking_enable: true
+  rocking_gain: 1.0
+  rocking_sign: 1.0
+  max_rock_angle_deg: 7.0
+  rock_rate_limit_deg: 10.0
+
+  cartesian_stiffness: [150.0, 250.0, 40.0, 15.0, 15.0, 15.0]
+  cartesian_damping:   [24.5, 31.6, 12.6, 7.7, 7.7, 7.7]

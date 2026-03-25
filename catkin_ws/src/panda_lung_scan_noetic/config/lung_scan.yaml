@@ -8,12 +8,12 @@ scan_length: 0.145
 scan_width: 0.105
 num_passes: 4
 scan_cycles: 1.0
-scan_speed: 0.004
+scan_speed: 0.002
 
-# Curved surface model from your latest dimensions
+# Curved surface model
 curve_half_width: 0.0525
 curve_drop: 0.010
-pass_coverage_ratio: 0.75
+pass_coverage_ratio: 1.0
 
 # Path generation / smoothing
 connector_points: 12
@@ -27,10 +27,22 @@ lateral_offset: 0.0
 cartesian_velocity_scaling: 0.03
 cartesian_acceleration_scaling: 0.03
 
-# Kept for consistency
+# Match the Python motion logic for approach moves
+approach_velocity_scaling: 0.28
+approach_acceleration_scaling: 0.03
+
 cartesian_stiffness: [300.0, 450.0, 60.0, 20.0, 20.0, 20.0]
 cartesian_damping:   [34.6, 42.4, 15.5, 8.9, 8.9, 8.9]
 
-# Safe pre-contact pose above phantom
-# MoveIt should bring the robot here first.
-start_pose: [0.45, 0.00, 0.36, 1.0, 0.0, 0.0, 0.0]
+# Manual sequencing poses used by move_to_scan_start
+# Format: [x, y, z, qx, qy, qz, qw]
+
+# Home pose from the Python implementation
+home_pose:  [0.4231, 0.0179, 0.5020, 0.9238795, -0.3826834, 0.0, 0.0]
+
+# Existing scan start pose
+start_pose: [0.45,   0.0179, 0.37,   0.9238795, -0.3826834, 0.0, 0.0]
+
+# Controller names for the final scan start step
+motion_controller: position_joint_trajectory_controller
+scan_controller: panda_ultrasound_force_scan_controller
