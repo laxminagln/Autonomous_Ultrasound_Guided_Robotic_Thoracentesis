@@ -11,9 +11,11 @@ find_package(catkin REQUIRED COMPONENTS
   franka_hw
   hardware_interface
   pluginlib
+  controller_manager_msgs
   visualization_msgs
   nav_msgs
   tf
+  tf2_ros
 )
 
 find_package(Eigen3 REQUIRED)
@@ -32,6 +34,7 @@ catkin_package(
     franka_hw
     hardware_interface
     pluginlib
+  controller_manager_msgs
 )
 
 ###########
@@ -64,6 +67,10 @@ add_dependencies(panda_ultrasound_force_scan_controller ${catkin_EXPORTED_TARGET
 add_executable(move_to_scan_start src/move_to_scan_start.cpp)
 target_link_libraries(move_to_scan_start ${catkin_LIBRARIES})
 add_dependencies(move_to_scan_start ${catkin_EXPORTED_TARGETS})
+
+add_executable(get_current_pose src/get_current_pose.cpp)
+target_link_libraries(get_current_pose ${catkin_LIBRARIES})
+add_dependencies(get_current_pose ${catkin_EXPORTED_TARGETS})
 
 #############
 ## Install ##

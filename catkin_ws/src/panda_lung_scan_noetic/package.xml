@@ -29,10 +29,12 @@
   <build_depend>franka_hw</build_depend>
   <build_depend>hardware_interface</build_depend>
   <build_depend>pluginlib</build_depend>
+  <build_depend>controller_manager_msgs</build_depend>
   <exec_depend>controller_interface</exec_depend>
   <exec_depend>franka_hw</exec_depend>
   <exec_depend>hardware_interface</exec_depend>
   <exec_depend>pluginlib</exec_depend>
+  <exec_depend>controller_manager_msgs</exec_depend>
   <export>
   <controller_interface plugin="${prefix}/panda_ultrasound_force_scan_plugin.xml"/>
   </export>
