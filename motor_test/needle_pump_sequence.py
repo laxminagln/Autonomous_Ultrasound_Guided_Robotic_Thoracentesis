@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Control thoracentesis needle servo + peristaltic pump sequence on Jetson Orin.
+"""Thoracentesis sequence on Jetson Orin using two different I2C buses.
+
+Wiring intent:
+- Motor driver on Jetson header pins 3/5  -> I2C bus 7
+- PCA9685 servo driver on Jetson header pins 27/28 -> alternate I2C bus
 
 Sequence:
-1. Move servo down (needle insertion)
-2. Run pump for configured time
+1. Move needle down with servo
+2. Run peristaltic pump for configured time
 3. Stop pump
-4. Move servo up (needle retraction)
-
-Based on the user's working Grove I2C motor driver script and PCA9685 servo test.
+4. Move needle back up
 """
 
 import time
@@ -20,7 +22,8 @@ from adafruit_pca9685 import PCA9685
 # =========================
 # Grove I2C Motor Driver
 # =========================
-I2C_BUS = 7
+# Jetson Orin pins 3/5 map to I2C bus 7 on the 40-pin header.
+MOTOR_I2C_BUS = 7
 I2C_ADDR = 0x0F
 
 MOTOR_SPEED_SET = 0x82
@@ -40,7 +43,7 @@ M1_ACW_M2_CW = 0x09
 
 
 class GroveMotorDriver:
-    def __init__(self, bus_num=I2C_BUS, addr=I2C_ADDR):
+    def __init__(self, bus_num=MOTOR_I2C_BUS, addr=I2C_ADDR):
         self.bus = SMBus(bus_num)
         self.addr = addr
         self.speed1 = 0
@@ -92,11 +95,26 @@ class GroveMotorDriver:
 
 
 # =========================
-# PCA9685 Servo Control
+# PCA9685 Servo Control on alternate I2C bus
 # =========================
+def make_alt_i2c_for_pins_27_28():
+    """Create the alternate I2C bus used by Jetson header pins 27/28.
+
+    On Jetson + Blinka this is typically board.SCL_1 / board.SDA_1.
+    """
+    scl = getattr(board, "SCL_1", None)
+    sda = getattr(board, "SDA_1", None)
+    if scl is None or sda is None:
+        raise RuntimeError(
+            "Alternate I2C pins 27/28 are not exposed as board.SCL_1 / board.SDA_1 on this system. "
+            "Run: python3 -c \"import board; print(dir(board))\" and confirm the alternate I2C names."
+        )
+    return busio.I2C(scl, sda)
+
+
 class NeedleServo:
     def __init__(self, channel=8, frequency=50):
-        self.i2c = busio.I2C(board.SCL, board.SDA)
+        self.i2c = make_alt_i2c_for_pins_27_28()
         self.pca = PCA9685(self.i2c)
         self.pca.frequency = frequency
         self.servo = self.pca.channels[channel]
@@ -133,17 +151,15 @@ def run_thoracentesis_sequence(
     pump = None
 
     try:
-        print("Initializing servo and pump...")
+        print("Initializing pump on I2C pins 3/5 (bus 7) and servo driver on I2C pins 27/28...")
         servo = NeedleServo(channel=8, frequency=50)
         pump = GroveMotorDriver()
         pump.set_pwm_frequency(F_3921HZ)
 
-        # Ensure starting position is UP
         print(f"Moving needle to UP position ({up_pulse} us)")
         servo.set_pulse_us(up_pulse)
         time.sleep(servo_move_time)
 
-        # Needle down
         print(f"Moving needle DOWN ({down_pulse} us)")
         servo.set_pulse_us(down_pulse)
         time.sleep(servo_move_time)
@@ -152,7 +168,6 @@ def run_thoracentesis_sequence(
             print(f"Waiting {settle_time:.1f} s after insertion...")
             time.sleep(settle_time)
 
-        # Pump on
         print("Starting peristaltic pump...")
         if pump_start_boost > 0 and pump_boost_time > 0:
             print(f"Pump boost: {pump_start_boost}% for {pump_boost_time:.2f} s")
@@ -163,12 +178,10 @@ def run_thoracentesis_sequence(
         pump.set_motor1(pump_speed)
         time.sleep(pump_run_time)
 
-        # Pump off
         print("Stopping peristaltic pump...")
         pump.stop_motor1()
         time.sleep(0.5)
 
-        # Needle up
         print(f"Moving needle UP ({up_pulse} us)")
         servo.set_pulse_us(up_pulse)
         time.sleep(servo_move_time)
