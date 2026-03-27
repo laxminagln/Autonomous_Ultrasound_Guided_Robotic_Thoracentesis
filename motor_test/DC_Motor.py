@@ -90,9 +90,10 @@ def main():
         drv.set_pwm_frequency(F_3921HZ)
 
         print(f"Running motor on OUT1/OUT2 at {args.speed}% for {args.time} seconds")
-        drv.set_motor1(args.speed)
-        time.sleep(args.time)
-
+        drv.set_motor1(100)
+        time.sleep(0.8)
+        drv.set_motor1(65)
+        time.sleep(5)
         drv.stop_motor1()
         print("Motor stopped")
 
