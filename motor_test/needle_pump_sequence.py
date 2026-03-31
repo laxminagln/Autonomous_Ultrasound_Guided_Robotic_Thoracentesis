@@ -115,7 +115,7 @@ def make_alt_i2c_for_pins_27_28():
 class NeedleServo:
     def __init__(self, channel=8, frequency=50):
         self.i2c = make_alt_i2c_for_pins_27_28()
-        self.pca = PCA9685(self.i2c)
+        self.pca = PCA9685(self.i2c, address=0x50)
         self.pca.frequency = frequency
         self.servo = self.pca.channels[channel]
 
