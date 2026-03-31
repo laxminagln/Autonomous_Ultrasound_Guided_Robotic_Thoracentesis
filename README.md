@@ -141,8 +141,6 @@ lateral centers:
 Then for pass i:
 ```
 xd=xi
-```
-```
 zd=zcenter−4.1667 xi2+zcontact
 ```​
 
