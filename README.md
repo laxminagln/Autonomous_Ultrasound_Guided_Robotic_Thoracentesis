@@ -138,13 +138,13 @@ y_max = 0.07
 lateral centers:
 [-0.045, -0.015, 0.015, 0.045]
 
-Then for pass i:
+Then for pass i
 ```
-x_d = x_i
+xd=xi
 ```
 ```
-z_d = z_center - 4.1667 * x_i^2 + z_contact
-```
+zd=zcenter−4.1667 xi2+zcontact
+```​
 
 and y_d moves linearly between y_min and y_max, alternating direction each pass.
 
@@ -175,6 +175,7 @@ use that as z_center
 derive the other 3 pass heights from the parabola
 
 #### Terminal 1
+
 ```
 cd ~/catkin_ws
 source devel/setup.bash
@@ -182,6 +183,7 @@ roslaunch panda_lung_scan_noetic force_scan_hardware.launch
 ```
 
 #### Terminal 2
+
 ```
 cd ~/catkin_ws
 source devel/setup.bash
@@ -189,6 +191,7 @@ roslaunch panda_lung_scan_noetic moveit_to_start.launch
 ```
 
 #### Terminal 3
+
 ```
 rosservice call /controller_manager/switch_controller "{
   start_controllers: ['panda_ultrasound_force_scan_controller'],
