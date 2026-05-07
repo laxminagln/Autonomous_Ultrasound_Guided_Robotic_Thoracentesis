@@ -1,0 +1,24 @@
+====================================================
+In All Terminals
+====================================================
+source /opt/ros/noetic/setup.bash
+export ROS_MASTER_URI=http://172.16.0.1:11311
+export ROS_IP=172.16.0.3
+unset ROS_HOSTNAME
+
+====================================================
+Terminal 1
+====================================================
+sudo ip addr del 172.16.0.1/24 dev eth0
+sudo ip addr add 172.16.0.3/24 dev eth0
+python3 /home/laxmi/GitHub/MSc-Dissertation/unet_trigger_subscriber.py   _trigger_param:=/jetson/start_unet_seq   _trigger_time_param:=/jetson/start_unet_stamp   _unet_command:="bash -lc 'source ~/unet_env/bin/activate; python3 /home/laxmi/sonon_unet/realtime_scrcpy_unet_param_signal.py'"   _working_dir:=/home/laxmi/sonon_unet   _log_file:=/home/laxmi/unet_runtime.log
+# once the real time UNet segmentation is done, run this if in need to kill it
+pkill -9 -f realtime_scrcpy_unet.py
+pkill -9 -f unet_trigger_param_watcher
+pkill -9 -f unet_trigger_param_watcher_kill_on_exit
+jobs -l
+ps -ef | grep realtime_scrcpy_unet.py
+
+====================================================
+Terminal 2
+====================================================

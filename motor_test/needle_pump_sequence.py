@@ -6,10 +6,10 @@ Wiring intent:
 - PCA9685 servo driver on Jetson header pins 27/28 -> alternate I2C bus
 
 Sequence:
-1. Move needle down with servo
-2. Run peristaltic pump for configured time
+1. Move needle DOWN first
+2. Run peristaltic pump for 30 s using M2
 3. Stop pump
-4. Move needle back up
+4. Move needle UP
 """
 
 import time
@@ -22,7 +22,6 @@ from adafruit_pca9685 import PCA9685
 # =========================
 # Grove I2C Motor Driver
 # =========================
-# Jetson Orin pins 3/5 map to I2C bus 7 on the 40-pin header.
 MOTOR_I2C_BUS = 7
 I2C_ADDR = 0x0F
 
@@ -44,48 +43,85 @@ M1_ACW_M2_CW = 0x09
 
 class GroveMotorDriver:
     def __init__(self, bus_num=MOTOR_I2C_BUS, addr=I2C_ADDR):
-        self.bus = SMBus(bus_num)
+        self.bus_num = bus_num
         self.addr = addr
+        self.bus = SMBus(bus_num)
         self.speed1 = 0
         self.speed2 = 0
         self.dir1 = 1
         self.dir2 = 1
+        self._last_direction = None
 
     def close(self):
-        self.bus.close()
+        try:
+            self.bus.close()
+        except Exception:
+            pass
 
-    def _write(self, cmd, data):
-        self.bus.write_i2c_block_data(self.addr, cmd, data)
+    def _reopen_bus(self):
+        try:
+            self.bus.close()
+        except Exception:
+            pass
+        time.sleep(0.05)
+        self.bus = SMBus(self.bus_num)
+
+    def _write(self, cmd, data, retries=3):
+        last_exc = None
+        for attempt in range(retries):
+            try:
+                self.bus.write_i2c_block_data(self.addr, cmd, data)
+                return
+            except Exception as exc:
+                last_exc = exc
+                print(f"I2C write failed for cmd 0x{cmd:02X}: {exc}. Retrying...")
+                self._reopen_bus()
+                time.sleep(0.1 * (attempt + 1))
+        raise last_exc
 
     def set_pwm_frequency(self, freq=F_3921HZ):
         self._write(PWM_FREQUENCY_SET, [freq, 0x00])
         time.sleep(0.05)
 
-    def _send_direction(self):
+    def _direction_code(self):
         if self.dir1 == 1 and self.dir2 == 1:
-            direction = BOTH_CLOCKWISE
-        elif self.dir1 == -1 and self.dir2 == -1:
-            direction = BOTH_ANTICLOCKWISE
-        elif self.dir1 == 1 and self.dir2 == -1:
-            direction = M1_CW_M2_ACW
-        else:
-            direction = M1_ACW_M2_CW
+            return BOTH_CLOCKWISE
+        if self.dir1 == -1 and self.dir2 == -1:
+            return BOTH_ANTICLOCKWISE
+        if self.dir1 == 1 and self.dir2 == -1:
+            return M1_CW_M2_ACW
+        return M1_ACW_M2_CW
 
-        self._write(DIRECTION_SET, [direction, 0x01])
-        time.sleep(0.01)
+    def _send_direction(self, force=False):
+        direction = self._direction_code()
+        if force or direction != self._last_direction:
+            self._write(DIRECTION_SET, [direction, 0x01])
+            self._last_direction = direction
+            time.sleep(0.01)
 
     def _send_speed(self):
         self._write(MOTOR_SPEED_SET, [self.speed1, self.speed2])
 
-    def set_motor1(self, percent):
+    def set_motor1(self, percent, force_direction=False):
         percent = max(-100, min(100, percent))
         self.dir1 = 1 if percent >= 0 else -1
         self.speed1 = int(abs(percent) * 255 / 100)
-        self._send_direction()
+        self._send_direction(force=force_direction)
+        self._send_speed()
+
+    def set_motor2(self, percent, force_direction=False):
+        percent = max(-100, min(100, percent))
+        self.dir2 = 1 if percent >= 0 else -1
+        self.speed2 = int(abs(percent) * 255 / 100)
+        self._send_direction(force=force_direction)
         self._send_speed()
 
     def stop_motor1(self):
         self.speed1 = 0
+        self._send_speed()
+
+    def stop_motor2(self):
+        self.speed2 = 0
         self._send_speed()
 
     def stop_all(self):
@@ -95,13 +131,10 @@ class GroveMotorDriver:
 
 
 # =========================
-# PCA9685 Servo Control on alternate I2C bus
+# PCA9685 Servo Control
 # =========================
 def make_alt_i2c_for_pins_27_28():
-    """Create the alternate I2C bus used by Jetson header pins 27/28.
-
-    On Jetson + Blinka this is typically board.SCL_1 / board.SDA_1.
-    """
+    """Create the alternate I2C bus used by Jetson header pins 27/28."""
     scl = getattr(board, "SCL_1", None)
     sda = getattr(board, "SDA_1", None)
     if scl is None or sda is None:
@@ -113,9 +146,9 @@ def make_alt_i2c_for_pins_27_28():
 
 
 class NeedleServo:
-    def __init__(self, channel=8, frequency=50):
+    def __init__(self, channel=8, frequency=50, address=0x50):
         self.i2c = make_alt_i2c_for_pins_27_28()
-        self.pca = PCA9685(self.i2c, address=0x50)
+        self.pca = PCA9685(self.i2c, address=address)
         self.pca.frequency = frequency
         self.servo = self.pca.channels[channel]
 
@@ -138,13 +171,11 @@ class NeedleServo:
 # =========================
 def run_thoracentesis_sequence(
     up_pulse,
-    down_pulse,
+    # down_pulse,
     servo_move_time,
+    settle_time_after_down,
     pump_speed,
     pump_run_time,
-    pump_start_boost,
-    pump_boost_time,
-    settle_time,
     release_servo_at_end,
 ):
     servo = None
@@ -152,36 +183,42 @@ def run_thoracentesis_sequence(
 
     try:
         print("Initializing pump on I2C pins 3/5 (bus 7) and servo driver on I2C pins 27/28...")
-        servo = NeedleServo(channel=8, frequency=50)
+        servo = NeedleServo(channel=8, frequency=50, address=0x50)
         pump = GroveMotorDriver()
         pump.set_pwm_frequency(F_3921HZ)
 
-        print(f"Moving needle to UP position ({up_pulse} us)")
         servo.set_pulse_us(up_pulse)
-        time.sleep(servo_move_time)
+        time.sleep(1.0)
 
-        print(f"Moving needle DOWN ({down_pulse} us)")
-        servo.set_pulse_us(down_pulse)
-        time.sleep(servo_move_time)
+        # STEP 1: needle goes DOWN first
+        # print(f"Moving needle DOWN ({down_pulse} us)")
+        # servo.set_pulse_us(down_pulse)
+        # time.sleep(servo_move_time)
 
-        if settle_time > 0:
-            print(f"Waiting {settle_time:.1f} s after insertion...")
-            time.sleep(settle_time)
+        if settle_time_after_down > 0:
+            print(f"Needle reached down position. Waiting {settle_time_after_down:.1f} s...")
+            time.sleep(settle_time_after_down)
 
-        print("Starting peristaltic pump...")
-        if pump_start_boost > 0 and pump_boost_time > 0:
-            print(f"Pump boost: {pump_start_boost}% for {pump_boost_time:.2f} s")
-            pump.set_motor1(pump_start_boost)
-            time.sleep(pump_boost_time)
+        # STEP 2: run pump on M2
+        # STEP 2: run pump on M2 in opposite direction for 5 s
+        print(f"Running peristaltic pump on M2 in opposite direction at {-pump_speed}% for 5.0 s...")
+        pump.set_motor2(pump_speed, force_direction=True)
+        time.sleep(3.0)
 
-        print(f"Pump run: {pump_speed}% for {pump_run_time:.1f} s")
-        pump.set_motor1(pump_speed)
-        time.sleep(pump_run_time)
+        # Then run in normal/current direction for 20 s
+        print(f"Running peristaltic pump on M2 in normal direction at {pump_speed}% for 20.0 s...")
+        pump.set_motor2(-pump_speed, force_direction=True)
+        time.sleep(20.0)
 
-        print("Stopping peristaltic pump...")
-        pump.stop_motor1()
+        # STEP 3: stop pump on M2
+        print("Stopping peristaltic pump on M2...")
+        try:
+            pump.stop_motor2()
+        except Exception as exc:
+            print(f"Warning: failed to send stop command cleanly: {exc}")
         time.sleep(0.5)
 
+        # STEP 4: needle goes UP
         print(f"Moving needle UP ({up_pulse} us)")
         servo.set_pulse_us(up_pulse)
         time.sleep(servo_move_time)
@@ -212,10 +249,6 @@ def run_thoracentesis_sequence(
     finally:
         if pump is not None:
             try:
-                pump.stop_all()
-            except Exception:
-                pass
-            try:
                 pump.close()
             except Exception:
                 pass
@@ -228,38 +261,59 @@ def run_thoracentesis_sequence(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run thoracentesis sequence: needle down -> pump on -> pump off -> needle up"
+        description="Run thoracentesis sequence: needle down -> pump on M2 for 10s -> pump off -> needle up"
     )
-    parser.add_argument("--up-pulse", type=int, default=1000,
-                        help="Servo pulse (us) for needle UP position")
-    parser.add_argument("--down-pulse", type=int, default=2000,
-                        help="Servo pulse (us) for needle DOWN position")
-    parser.add_argument("--servo-move-time", type=float, default=2.0,
-                        help="Time in seconds to allow servo motion")
-    parser.add_argument("--pump-speed", type=int, default=65,
-                        help="Pump running speed in percent (-100 to 100)")
-    parser.add_argument("--pump-time", type=float, default=30.0,
-                        help="Pump run time in seconds")
-    parser.add_argument("--pump-start-boost", type=int, default=100,
-                        help="Short startup boost speed in percent to avoid stalling")
-    parser.add_argument("--pump-boost-time", type=float, default=0.8,
-                        help="Boost duration in seconds")
-    parser.add_argument("--settle-time", type=float, default=0.5,
-                        help="Wait time after needle reaches down position before starting pump")
-    parser.add_argument("--no-release-servo", action="store_true",
-                        help="Keep servo driven at the end instead of releasing PWM")
+    # parser.add_argument(
+    #     "--down-pulse",
+    #     type=int,
+    #     default=1250,
+    #     help="Servo pulse (us) for needle DOWN position"
+    # )
+    parser.add_argument(
+        "--up-pulse",
+        type=int,
+        default=2500,
+        help="Servo pulse (us) for needle UP position"
+    )
+    parser.add_argument(
+        "--servo-move-time",
+        type=float,
+        default=4.0,
+        help="Time in seconds to allow servo motion"
+    )
+    parser.add_argument(
+        "--settle-time-after-down",
+        type=float,
+        default=1.0,
+        help="Wait time after needle reaches down position before pump starts"
+    )
+    parser.add_argument(
+        "--pump-speed",
+        type=int,
+        default=100,
+        help="Pump running speed in percent (-100 to 100)"
+    )
+    parser.add_argument(
+        "--pump-time",
+        type=float,
+        default=20.0,
+        help="Pump run time in seconds"
+    )
+    parser.add_argument(
+        "--no-release-servo",
+        action="store_true",
+        help="Keep servo driven at the end instead of releasing PWM"
+    )
     args = parser.parse_args()
 
     run_thoracentesis_sequence(
         up_pulse=args.up_pulse,
-        down_pulse=args.down_pulse,
+        # down_pulse=args.down_pulse,
         servo_move_time=args.servo_move_time,
+        settle_time_after_down=args.settle_time_after_down,
         pump_speed=args.pump_speed,
         pump_run_time=args.pump_time,
-        pump_start_boost=args.pump_start_boost,
-        pump_boost_time=args.pump_boost_time,
-        settle_time=args.settle_time,
-        release_servo_at_end=not args.no_release_servo,
+        release_servo_at_end=False,
     )
 
 
